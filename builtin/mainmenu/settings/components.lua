@@ -137,7 +137,7 @@ function make.slider(setting)
 			local value = core.settings:get(setting.name) or setting.default
 			local scrollbar_value = (value - setting.min)/(setting.max - setting.min)*steps
 
-			self.resettable = true
+			self.resettable = core.settings:has(setting.name)
 
 			local setting_label = ("label[0,0.25;%s]"):format(
 				setting.readable_name)
@@ -151,8 +151,12 @@ function make.slider(setting)
 		end,
 
 		on_submit = function(self, fields)
-			local raw_value = core.explode_scrollbar_event(fields[setting.name]).value
-			local value = (raw_value/steps) * (setting.max - setting.min) + setting.min
+			local event = core.explode_scrollbar_event(fields[setting.name])
+			if event.type~="CHG" then
+				return false
+			end
+
+			local value = (event.value/steps) * (setting.max - setting.min) + setting.min
 			core.settings:set(setting.name, tostring(value))
 			return false
 		end
