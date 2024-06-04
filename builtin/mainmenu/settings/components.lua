@@ -126,8 +126,16 @@ end, is_valid_number)
 make.string = make_field(tostring, nil)
 
 
+--[[
+Since GUI is reloaded every time button press happens we cannot
+store information about slider mode in it's table, do it here instead
+--]]
+local slider_value_modes = {}
 function make.slider(setting)
 	local steps = tonumber(setting.steps) or 100
+	if slider_value_modes[setting.name]==nil then
+		slider_value_modes[setting.name] = false
+	end
 
 	return {
 		info_text = setting.comment,
@@ -139,18 +147,45 @@ function make.slider(setting)
 
 			self.resettable = core.settings:has(setting.name)
 
+			-- Set appropriate mode button text based on slider mode
+			local mode_button_text
+			if slider_value_modes[setting.name] then
+				mode_button_text = fgettext("Slider")
+			else
+				mode_button_text = fgettext("Value")
+			end
+
 			local setting_label = ("label[0,0.25;%s]"):format(
 				setting.readable_name)
-			local scrollbar_options = ("scrollbaroptions[min=0;max=%f;smallstep=1;largestep=10]"):format(
+			local value_edit
+			if slider_value_modes[setting.name] then
+				value_edit = ("field[0,0.5;%f,0.8;%s;;%s]"):format(
+					avail_w - 1.5, setting.name, core.formspec_escape(value))
+			else
+				local scrollbar_options = ("scrollbaroptions[min=0;max=%f;smallstep=1;largestep=10]"):format(
 				steps)
-			local scrollbar_formspec = ("scrollbar[0,0.5;%f,0.4;horizontal;%s;%f]"):format(
-				avail_w - 1, setting.name, scrollbar_value)
-			local formspec = setting_label..scrollbar_options..scrollbar_formspec
+				local scrollbar_formspec = ("scrollbar[0,0.7;%f,0.4;horizontal;%s;%f]"):format(
+					avail_w - 1.5, setting.name, scrollbar_value)
+				value_edit = scrollbar_options..scrollbar_formspec
+			end
+			local scrollbar_mode_button = ("button[%f,0.5;1.5,0.8;%s;%s]"):format(
+				avail_w - 1.5, "switch_"..setting.name, mode_button_text)
+			local formspec = setting_label..value_edit..scrollbar_mode_button
 
 			return formspec, 1.1
 		end,
 
 		on_submit = function(self, fields)
+			-- Save setting value when either mode button or enter is pressed
+			if (fields["switch_"..setting.name] and slider_value_modes[setting.name]) or fields.key_enter_field==setting.name then
+				core.settings:set(setting.name, fields[setting.name])
+			end
+
+			if fields["switch_"..setting.name] then
+				slider_value_modes[setting.name] = not slider_value_modes[setting.name]
+				return true
+			end
+
 			local event = core.explode_scrollbar_event(fields[setting.name])
 			if event.type~="CHG" then
 				return false
